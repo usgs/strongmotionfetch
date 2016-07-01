@@ -1,10 +1,14 @@
+
+#stdlib imports
+import time
+import os.path
+from xml.dom import minidom
+
+#third party
 import pandas as pd
 from obspy.geodetics.base import gps2dist_azimuth
 from obspy.signal.invsim import simulate_seismometer, corn_freq_2_paz
 from matplotlib import dates
-import time
-import os.path
-
 from neicio.tag import Tag
 
 FILTER_FREQ = 0.02
@@ -200,7 +204,6 @@ class Retriever(object):
             and then a number of intensity measure types, typically including:
             - pga
             - pgv
-            - mmi
             - psa03
             - psa10
             - psa30
@@ -231,15 +234,37 @@ class Retriever(object):
             df = df.append(row,ignore_index=True)
         return df
     
-    def ampsToXML(self,amps=None):
+    def ampsToXML(self,amps=None,save=True):
         """Save a DataFrame of peak amplitudes to a ShakeMap compatible XML station data file.
 
         :param amps:
-          DataFrame containing peak amplitudes - see return from traceToAmps().
+          DataFrame containing the following columns:
+            - netid
+            - name
+            - code
+            - loc
+            - lat
+            - lon
+            - dist
+            - source
+            - insttype
+            - commtype
+            - intensity
+            and then a number of intensity measure types, typically including:
+            - pga
+            - pgv
+            - psa03
+            - psa10
+            - psa30
+            and possibly a number of other pseudo-spectral periods.
+        :param save:
+          Boolean indicating whether XML representation of amps data should be saved to a file.
+        :returns:
+          String containing XML representation of amps data.
         """
         codes = amps['code'].unique()
         psacols = amps.columns[amps.columns.str.startswith('psa')].tolist()
-        imts = ['mmi','pga','pgv'] + psacols
+        imts = ['pga','pgv'] + psacols
         shakemap_data_tag = Tag('shakemap-data')
         atts = {'id':self._id,
                 'lat':self._origin['lat'],
@@ -272,17 +297,19 @@ class Retriever(object):
                     'intensity':rows.iloc[0]['intensity']}
             station_tag = Tag('station',attributes=atts)
             for index, row in rows.iterrows():
-                comptag = Tag('comp',attributes={'name':row['channel']})
                 for imt in imts:
                     if imt not in row:
                         continue
+                    comptag = Tag('comp',attributes={'name':imt})
                     imt_tag = Tag(imt,attributes={'value':row[imt],'flag':'0'})
                     comptag.addChild(imt_tag)
-                station_tag.addChild(comptag)
+                    station_tag.addChild(comptag)
             stationlist_tag.addChild(station_tag)
         earthquake_tag.addChild(stationlist_tag)
         outfile = os.path.join(self._inputfolder,'%s_dat.xml' % self._source)
-        earthquake_tag.renderToXML(outfile)
+        if save:
+            xmlstr = earthquake_tag.renderToXML(outfile)
+        return xmlstr
         
     def xmlToAmps(self,xmlstr=None):
         """Turn a ShakeMap XML file into a pandas DataFrame.
@@ -296,7 +323,7 @@ class Retriever(object):
             return None
         root = minidom.parseString(xmlstr)
         comps = root.getElementsByTagName('comp')
-        imts = ['mmi','pga','pgv']
+        imts = []
         for comp in comps:
             for child in comp.childNodes:
                 if child.nodeType != child.ELEMENT_NODE:
@@ -320,15 +347,17 @@ class Retriever(object):
                     row[flt] = np.nan
             
             comps = station.getElementsByTagName('comp')
-            for child in comp.childNodes:
-                if child.nodeType != child.ELEMENT_NODE:
-                    continue
-                if child.nodeName in imts:
-                    row[child.nodeName] = float(child.getAttribute('value'))
+            for comp in comps:
+                for child in comp.childNodes:
+                    if child.nodeType != child.ELEMENT_NODE:
+                        continue
+                    if child.nodeName in imts:
+                        row[child.nodeName] = float(child.getAttribute('value'))
             amps = amps.append(row,ignore_index=True)
-        root.unlink()                
-            
-            
+        root.unlink()
+        
+        return amps    
+        
         
     def _getStationMetadata(self,trace):
         """Internal method to extract station metadata from a Trace object.
