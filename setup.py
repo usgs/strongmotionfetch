@@ -7,5 +7,4 @@ setup(name='strongmotionfetch',
       author_email='mhearne@usgs.gov',
       url='',
       packages=['strongmotionfetch'],
-      scripts = ['getstrong'],
 )
