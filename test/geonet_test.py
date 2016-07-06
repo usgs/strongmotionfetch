@@ -17,7 +17,7 @@ sys.path.insert(0,strongdir) #put this at the front of the system path, ignoring
 import numpy as np
 
 #local imports
-from strongmotionfetch.geonet import GeonetAsciiReader,readgeonet,readheader,GeoNetRetriever
+from strongmotionfetch.geonet import GeonetAsciiReader,readgeonet,GeoNetRetriever
 
 def test_fileread():
     testfile = os.path.join('data','geonet_testfile.V1A')
