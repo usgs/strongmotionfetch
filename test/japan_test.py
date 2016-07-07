@@ -17,28 +17,29 @@ sys.path.insert(0,strongdir) #put this at the front of the system path, ignoring
 import numpy as np
 
 #local imports
-from strongmotionfetch.geonet import GeonetAsciiReader,readgeonet,GeoNetRetriever
+from strongmotionfetch.japan import read_knet,KNetRetriever
 
 def test_fileread():
-    testfile = os.path.join('data','geonet_testfile.V1A')
-    traces,headers = readgeonet(testfile)
-    sums = [-0.0064000000000005164,-0.021799999999999875,-0.012700000000000544]
-    print('Testing that the sums of the traces from test data file are consistent...')
-    for trace,sum in zip(traces,sums):
-        np.testing.assert_almost_equal(sum,trace.data.sum())
+    testfile = os.path.join('data','knet_example_file.EW')
+    trace,header = read_knet(testfile)
+    mysum = np.nan #figure out what this should be
+    print('Testing that the sum of the trace from test data file is consistent...')
+    np.testing.assert_almost_equal(mysum,trace.data.sum())
     print('Passed sum test.')
 
-def test_fetch():
-    lat = -37.6478
-    lon = 179.6621
-    mag = 6.7
-    dtime = datetime(2014,11,16,22,33,20)
+def test_fetch(user,password):
+    #fill in these values with a small Japanese event with not a lot of strong motion data. 
+    lat = None
+    lon = None
+    mag = None
+    dtime = None
+    nfiles = None #this should be the number of raw data files (both knet and kiknet) belonging to this event.
     rawfolder = tempfile.mkdtemp()
     try:
         print('Testing fetch for geonet...')
-        geonet = GeoNetRetriever(rawfolder,rawfolder)
-        geonet.fetch(dtime,lat,lon,limit=1)
-        datafiles = geonet.getDataFiles()
+        knet = KNetRetriever(rawfolder,rawfolder)
+        knet.fetch(dtime,lat,lon,user=user,password=password)
+        datafiles = knet.getDataFiles()
         if len(datafiles) == 1:
             print('Passed fetch test for geonet.')
         else:
@@ -49,15 +50,19 @@ def test_fetch():
         shutil.rmtree(rawfolder)
 
 def test_getamps():
+    #test parsing local files into peak amplitudes
     rawfolder = tempfile.mkdtemp()
-    lat = -37.6478
-    lon = 179.6621
-    depth = 22.0
-    mag = 6.7
+
+    #fill in these values with a small Japanese event.
+    lat = None
+    lon = None
+    depth = None
+    mag = None
     eid = 'abcd'
-    network = 'nz'
+    network = 'jp'
     locstring = ''
-    dtime = datetime(2014,11,16,22,33,20)
+    dtime = None
+    
     eventinfo = {'id':eid,
                  'time':dtime,
                  'lat':lat,
@@ -67,15 +72,20 @@ def test_getamps():
                  'network':network,
                  'location':locstring}
     
-    retriever = GeoNetRetriever(rawfolder,rawfolder)
+    retriever = KNetRetriever(rawfolder,rawfolder)
     retriever.setEventInfo(eventinfo)
     testfiles = glob.glob(os.path.join('data','20141116*.V1A'))
     retriever.setDataFiles(testfiles)
+
     traces = retriever.readFiles()
     amps = retriever.traceToAmps(traces=traces)
     xmlfile = retriever.ampsToXML(amps=amps)
 
 if __name__ == '__main__':
+    if len(sys.argv) > 2:
+        user = sys.argv[1]
+        password = sys.argv[2]
+        test_fetch(user,password)
     test_fileread()
     test_getamps()
-    test_fetch()
+
